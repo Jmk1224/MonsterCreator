@@ -670,7 +670,7 @@
             }
         }
 
-        function generateMonsterPicture() {
+    function generateMonsterPicture() {
     const loadingState = document.getElementById('loadingState');
     const placeholderState = document.getElementById('placeholderState');
     const generatedImage = document.getElementById('generatedImage');
@@ -689,16 +689,24 @@
     }, 1200);
 
     const monsterName = document.getElementById('monsterName')?.value.trim() || 'monster';
+    const eyes = document.getElementById('monsterEyes')?.value || '2';
+    const ears = document.getElementById('monsterEars')?.value || '2';
+    const mouths = document.getElementById('monsterMouths')?.value || '1';
+    const hands = document.getElementById('monsterHands')?.value || '2';
+    const legs = document.getElementById('monsterLegs')?.value || '2';
+    const colorSelect = document.getElementById('monsterColor');
+    const color = colorSelect ? colorSelect.options[colorSelect.selectedIndex].text.replace(/^[^\s]+\s*/, '') : 'pink';
+    
     const seed = Math.floor(Math.random() * 1000000);
-    
-    // Explicit prompt construction focusing heavily on counts & colors
-    const promptText = `a friendly cute cartoon monster with ${document.getElementById('monsterEyes')?.value || 2} eyes, ${document.getElementById('monsterEars')?.value || 2} ears, ${document.getElementById('monsterMouths')?.value || 1} mouth, ${document.getElementById('monsterHands')?.value || 2} arms, ${document.getElementById('monsterLegs')?.value || 2} legs, ${document.getElementById('monsterColor')?.value || 'colorful'} body color, 3d render toy style, vibrant clean background`;
-    
-    const encodedPrompt = encodeURIComponent(promptText);
 
-    // Primary & Fallback AI image generation endpoints parsing full text prompts
-    const primaryAiUrl = `https://pollinations.ai/p/${encodedPrompt}?width=512&height=512&seed=${seed}&model=flux`;
-    const fallbackAiUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
+    // Prompt specifically tuned to replicate cute 3D fuzzy plush reference monsters
+    const detailedPrompt = `A high-quality 3D render of a friendly cute plush monster named ${monsterName}. Made of soft fuzzy ${color} fur, stitched plush texture. It has exactly ${eyes} glossy round cartoon eyes grouped together, ${ears} colorful striped ears, ${mouths} cheerful smiling mouth with tiny monster teeth, ${hands} colorful arms with hands sticking out, and ${legs} cute fuzzy feet. Children book character toy style, studio lighting, smooth pastel background, Pixar digital art, high resolution, adorable masterpiece`;
+
+    const encodedPrompt = encodeURIComponent(detailedPrompt);
+
+    // URL explicitly requesting FLUX 3D model processing
+    const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?width=512&height=512&seed=${seed}&model=flux&nologo=true`;
+    const fallbackUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
 
     const imgLoader = new Image();
 
@@ -712,28 +720,28 @@
         if (imageActions) imageActions.classList.remove('hidden');
 
         addToGallery(url, monsterName);
-        showToast('Monster image created!', 'fa-wand-magic-sparkles');
+        showToast('Fuzzy Monster Created!', 'fa-wand-magic-sparkles');
     };
 
     imgLoader.onload = function() {
-        handleSuccess(primaryAiUrl);
+        handleSuccess(primaryUrl);
     };
 
     imgLoader.onerror = function() {
         const fallbackLoader = new Image();
         fallbackLoader.onload = function() {
-            handleSuccess(fallbackAiUrl);
+            handleSuccess(fallbackUrl);
         };
         fallbackLoader.onerror = function() {
             if (loadingMsgInterval) clearInterval(loadingMsgInterval);
             if (loadingState) loadingState.classList.add('hidden');
             if (placeholderState) placeholderState.classList.remove('hidden');
-            showToast('Generation timed out. Please try clicking generate again.', 'fa-circle-exclamation');
+            showToast('Generation timed out. Please click generate again.', 'fa-circle-exclamation');
         };
-        fallbackLoader.src = fallbackAiUrl;
+        fallbackLoader.src = fallbackUrl;
     };
 
-    imgLoader.src = primaryAiUrl;
+    imgLoader.src = primaryUrl;
 }
 
         function addToGallery(url, name) {
