@@ -670,7 +670,7 @@
             }
         }
 
-    function generateMonsterPicture() {
+   async function generateMonsterPicture() {
     const loadingState = document.getElementById('loadingState');
     const placeholderState = document.getElementById('placeholderState');
     const generatedImage = document.getElementById('generatedImage');
@@ -688,7 +688,7 @@
         if (loadingSubtext) loadingSubtext.innerText = loadingMessages[msgIdx];
     }, 1200);
 
-    const monsterName = document.getElementById('monsterName')?.value.trim() || 'monster';
+    const monsterName = document.getElementById('monsterName')?.value.trim() || 'Monster';
     const eyes = document.getElementById('monsterEyes')?.value || '2';
     const ears = document.getElementById('monsterEars')?.value || '2';
     const mouths = document.getElementById('monsterMouths')?.value || '1';
@@ -699,95 +699,66 @@
     
     const seed = Math.floor(Math.random() * 1000000);
 
-    // Prompt specifically tuned to replicate cute 3D fuzzy plush reference monsters
-    const detailedPrompt = `A high-quality 3D render of a friendly cute plush monster named ${monsterName}. Made of soft fuzzy ${color} fur, stitched plush texture. It has exactly ${eyes} glossy round cartoon eyes grouped together, ${ears} colorful striped ears, ${mouths} cheerful smiling mouth with tiny monster teeth, ${hands} colorful arms with hands sticking out, and ${legs} cute fuzzy feet. Children book character toy style, studio lighting, smooth pastel background, Pixar digital art, high resolution, adorable masterpiece`;
+    // Highly detailed prompt explicitly matching your reference picture style
+    const promptText = `A vibrant 3D Pixar style character render of a cute friendly plush monster named ${monsterName}. Made of soft fluffy ${color} fur, stitched plushie toy texture. It has exactly ${eyes} glossy round cartoon eyes, ${ears} striped furry ears, ${mouths} happy smiling mouth with tiny monster teeth, ${hands} colorful plush arms, and ${legs} cute soft feet. Studio lighting, clean soft background, cute children toy aesthetic, high resolution, 8k.`;
 
-    const encodedPrompt = encodeURIComponent(detailedPrompt);
+    try {
+        // Direct POST request prevents browser image caching/CORS fallback issues
+        const response = await fetch('https://image.pollinations.ai/prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: promptText,
+                width: 512,
+                height: 512,
+                seed: seed,
+                model: 'flux',
+                nologo: true
+            })
+        });
 
-    // URL explicitly requesting FLUX 3D model processing
-    const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?width=512&height=512&seed=${seed}&model=flux&nologo=true`;
-    const fallbackUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
+        if (!response.ok) throw new Error('API Error');
 
-    const imgLoader = new Image();
+        const imageBlob = await response.blob();
+        const imageUrl = URL.createObjectURL(imageBlob);
 
-    const handleSuccess = (url) => {
         if (loadingMsgInterval) clearInterval(loadingMsgInterval);
         if (loadingState) loadingState.classList.add('hidden');
         if (generatedImage) {
-            generatedImage.src = url;
+            generatedImage.src = imageUrl;
             generatedImage.classList.remove('hidden');
         }
         if (imageActions) imageActions.classList.remove('hidden');
 
-        addToGallery(url, monsterName);
+        addToGallery(imageUrl, monsterName);
         showToast('Fuzzy Monster Created!', 'fa-wand-magic-sparkles');
-    };
 
-    imgLoader.onload = function() {
-        handleSuccess(primaryUrl);
-    };
+    } catch (error) {
+        // Safe URL fallback if POST is blocked
+        const encodedPrompt = encodeURIComponent(promptText);
+        const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?width=512&height=512&seed=${seed}&model=flux&nologo=true`;
 
-    imgLoader.onerror = function() {
-        const fallbackLoader = new Image();
-        fallbackLoader.onload = function() {
-            handleSuccess(fallbackUrl);
+        const imgLoader = new Image();
+        imgLoader.onload = function() {
+            if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+            if (loadingState) loadingState.classList.add('hidden');
+            if (generatedImage) {
+                generatedImage.src = fallbackUrl;
+                generatedImage.classList.remove('hidden');
+            }
+            if (imageActions) imageActions.classList.remove('hidden');
+            addToGallery(fallbackUrl, monsterName);
+            showToast('Fuzzy Monster Created!', 'fa-wand-magic-sparkles');
         };
-        fallbackLoader.onerror = function() {
+        imgLoader.onerror = function() {
             if (loadingMsgInterval) clearInterval(loadingMsgInterval);
             if (loadingState) loadingState.classList.add('hidden');
             if (placeholderState) placeholderState.classList.remove('hidden');
-            showToast('Generation timed out. Please click generate again.', 'fa-circle-exclamation');
+            showToast('Could not generate image. Please try again!', 'fa-circle-exclamation');
         };
-        fallbackLoader.src = fallbackUrl;
-    };
-
-    imgLoader.src = primaryUrl;
+        imgLoader.src = fallbackUrl;
+    }
 }
-
-        function addToGallery(url, name) {
-            galleryItems.unshift({ url, name });
-            const galleryGrid = document.getElementById('galleryGrid');
-            const galleryCount = document.getElementById('galleryCount');
-            const emptyGalleryMsg = document.getElementById('emptyGalleryMsg');
-
-            if (emptyGalleryMsg) emptyGalleryMsg.classList.add('hidden');
-            if (galleryCount) galleryCount.innerText = `${galleryItems.length} monster${galleryItems.length > 1 ? 's' : ''}`;
-
-            if (galleryGrid) {
-                galleryGrid.innerHTML = galleryItems.map(item => `
-                    <div class="relative group rounded-xl overflow-hidden border border-purple-100 shadow-sm aspect-square bg-slate-100">
-                        <img src="${item.url}" alt="${item.name}" class="w-full h-full object-cover">
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-2">
-                            <span class="text-white text-xs font-bold truncate">${item.name}</span>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
-
-        function downloadImage() {
-            const generatedImage = document.getElementById('generatedImage');
-            if (!generatedImage || !generatedImage.src) return;
-            const name = document.getElementById('monsterName')?.value || 'monster';
-
-            fetch(generatedImage.src)
-                .then(response => response.blob())
-                .then(blob => {
-                    const blobUrl = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = blobUrl;
-                    a.download = `${name.toLowerCase()}-monster.jpg`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(blobUrl);
-                    showToast('Image downloaded!', 'fa-download');
-                })
-                .catch(() => {
-                    window.open(generatedImage.src, '_blank');
-                });
-        }
-
         function shareMonsterCard() {
             const textToCopy = document.getElementById('sentenceDisplay')?.innerText;
             if (textToCopy) {
