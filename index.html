@@ -690,16 +690,17 @@
 
     const monsterName = document.getElementById('monsterName')?.value.trim() || 'monster';
     const seed = Math.floor(Math.random() * 1000000);
-    const cleanPrompt = encodeURIComponent(currentPromptText);
+    
+    // Explicit prompt construction focusing heavily on counts & colors
+    const promptText = `a friendly cute cartoon monster with ${document.getElementById('monsterEyes')?.value || 2} eyes, ${document.getElementById('monsterEars')?.value || 2} ears, ${document.getElementById('monsterMouths')?.value || 1} mouth, ${document.getElementById('monsterHands')?.value || 2} arms, ${document.getElementById('monsterLegs')?.value || 2} legs, ${document.getElementById('monsterColor')?.value || 'colorful'} body color, 3d render toy style, vibrant clean background`;
+    
+    const encodedPrompt = encodeURIComponent(promptText);
 
-    // Option 1: Fast AI SVG/PNG Monster Generator (Always works on GitHub Pages)
-    const robohashUrl = `https://robohash.org/${encodeURIComponent(monsterName)}-${seed}.png?set=set2&bgset=bg1`;
-
-    // Option 2: Direct Pollinations URL
-    const pollinationsUrl = `https://gen.pollinations.ai/image/${cleanPrompt}?width=512&height=512&seed=${seed}`;
+    // Primary & Fallback AI image generation endpoints parsing full text prompts
+    const primaryAiUrl = `https://pollinations.ai/p/${encodedPrompt}?width=512&height=512&seed=${seed}&model=flux`;
+    const fallbackAiUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
 
     const imgLoader = new Image();
-    imgLoader.crossOrigin = "anonymous";
 
     const handleSuccess = (url) => {
         if (loadingMsgInterval) clearInterval(loadingMsgInterval);
@@ -714,27 +715,25 @@
         showToast('Monster image created!', 'fa-wand-magic-sparkles');
     };
 
-    // Try AI model first
     imgLoader.onload = function() {
-        handleSuccess(pollinationsUrl);
+        handleSuccess(primaryAiUrl);
     };
 
-    // If external AI service blocks request or times out, fall back to Robohash monster renderer
     imgLoader.onerror = function() {
         const fallbackLoader = new Image();
         fallbackLoader.onload = function() {
-            handleSuccess(robohashUrl);
+            handleSuccess(fallbackAiUrl);
         };
         fallbackLoader.onerror = function() {
             if (loadingMsgInterval) clearInterval(loadingMsgInterval);
             if (loadingState) loadingState.classList.add('hidden');
             if (placeholderState) placeholderState.classList.remove('hidden');
-            showToast('Could not load image. Try clicking again.', 'fa-circle-exclamation');
+            showToast('Generation timed out. Please try clicking generate again.', 'fa-circle-exclamation');
         };
-        fallbackLoader.src = robohashUrl;
+        fallbackLoader.src = fallbackAiUrl;
     };
 
-    imgLoader.src = pollinationsUrl;
+    imgLoader.src = primaryAiUrl;
 }
 
         function addToGallery(url, name) {
