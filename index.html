@@ -1,63 +1,807 @@
-function generateMonsterPicture() {
-    const loadingState = document.getElementById('loadingState');
-    const placeholderState = document.getElementById('placeholderState');
-    const generatedImage = document.getElementById('generatedImage');
-    const imageActions = document.getElementById('imageActions');
-    const loadingSubtext = document.getElementById('loadingSubtext');
-
-    if (loadingState) loadingState.classList.remove('hidden');
-    if (placeholderState) placeholderState.classList.add('hidden');
-    if (generatedImage) generatedImage.classList.add('hidden');
-
-    let msgIdx = 0;
-    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-    loadingMsgInterval = setInterval(() => {
-        msgIdx = (msgIdx + 1) % loadingMessages.length;
-        if (loadingSubtext) loadingSubtext.innerText = loadingMessages[msgIdx];
-    }, 1200);
-
-    // Clean and encode text prompt safely for web requests
-    const cleanPrompt = encodeURIComponent(currentPromptText);
-    const seed = Math.floor(Math.random() * 1000000);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monster Creator Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    // Primary URL (Using standard Pollinations image path)
-    const primaryUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
-    
-    // Direct REST Fallback URL
-    const fallbackUrl = `https://gen.pollinations.ai/image/${cleanPrompt}?width=512&height=512&seed=${seed}`;
-
-    const imgLoader = new Image();
-    
-    const handleSuccess = (url) => {
-        if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-        if (loadingState) loadingState.classList.add('hidden');
-        if (generatedImage) {
-            generatedImage.src = url;
-            generatedImage.classList.remove('hidden');
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        fredoka: ['Fredoka', 'sans-serif'],
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        monster: {
+                            pink: '#ff6b9d',
+                            purple: '#8b5cf6',
+                            yellow: '#fbbf24',
+                            blue: '#3b82f6',
+                            green: '#10b981',
+                            dark: '#2d1b4e'
+                        }
+                    }
+                }
+            }
         }
-        if (imageActions) imageActions.classList.remove('hidden');
+    </script>
+    
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #fdf2f8 0%, #f3e8ff 50%, #e0f2fe 100%);
+            min-height: 100vh;
+        }
+        .heading-font {
+            font-family: 'Fredoka', cursive;
+        }
+        .magic-card {
+            background: white;
+            border-radius: 2rem;
+            box-shadow: 0 20px 40px -15px rgba(139, 92, 246, 0.15);
+        }
+        .bounce-gentle {
+            animation: bounceGentle 3s infinite ease-in-out;
+        }
+        @keyframes bounceGentle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .pulse-glow {
+            animation: pulseGlow 2s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            from { box-shadow: 0 0 15px rgba(236, 72, 153, 0.4); }
+            to { box-shadow: 0 0 30px rgba(236, 72, 153, 0.8); }
+        }
+        .step-transition {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="p-3 md:p-6 text-slate-800">
 
-        addToGallery(url, document.getElementById('monsterName')?.value || 'Monster');
-        showToast('Monster image created!', 'fa-wand-magic-sparkles');
-    };
+    <div class="max-w-5xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row items-center justify-between bg-white/80 backdrop-blur-md p-4 sm:p-6 rounded-3xl shadow-sm border border-purple-100 gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-pink-300/50 bounce-gentle">
+                    <i class="fa-solid font-bold fa-ghost"></i>
+                </div>
+                <div>
+                    <h1 class="heading-font text-2xl sm:text-3xl text-purple-900 font-bold tracking-wide">Monster Creator Studio</h1>
+                    <p class="text-xs sm:text-sm text-purple-600 font-medium">Answer step-by-step to build your monster & picture!</p>
+                </div>
+            </div>
 
-    imgLoader.onload = function() {
-        handleSuccess(primaryUrl);
-    };
+            <!-- View Mode Switcher & Quick Presets -->
+            <div class="flex items-center gap-2 flex-wrap justify-center">
+                <button id="toggleViewBtn" onclick="toggleViewMode()" class="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-purple-100 text-purple-800 hover:bg-purple-200 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-list-check"></i> <span id="toggleViewText">Switch to All-in-One View</span>
+                </button>
+                <div class="h-4 w-[1px] bg-purple-200"></div>
+                <button onclick="loadPreset('LALA')" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-pink-100 text-pink-700 hover:bg-pink-200 transition">
+                    🌸 LALA
+                </button>
+                <button onclick="loadPreset('BUBBLE')" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition">
+                    🫧 BUBBLE
+                </button>
+                <button onclick="loadPreset('ZOG')" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition">
+                    🐲 ZOG
+                </button>
+            </div>
+        </header>
 
-    imgLoader.onerror = function() {
-        const fallbackLoader = new Image();
-        fallbackLoader.onload = function() {
-            handleSuccess(fallbackUrl);
+        <!-- Progress Tracker Bar -->
+        <div id="wizardProgressContainer" class="magic-card p-4 border border-purple-100">
+            <div class="flex items-center justify-between mb-2 px-1">
+                <span id="stepProgressLabel" class="heading-font text-sm font-bold text-purple-900">Step 1 of 7: Monster Name</span>
+                <span id="stepProgressPercent" class="text-xs font-bold text-purple-500">14% Complete</span>
+            </div>
+            <div class="w-full bg-purple-100 h-3 rounded-full overflow-hidden p-0.5">
+                <div id="progressBar" class="bg-gradient-to-r from-pink-500 to-purple-600 h-full rounded-full transition-all duration-300 w-[14%]"></div>
+            </div>
+            <div id="stepDots" class="flex justify-between items-center mt-3 px-2"></div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <div id="mainContentCol" class="lg:col-span-12 space-y-6">
+                
+                <div class="magic-card p-6 sm:p-8 border border-purple-100 relative min-h-[380px] flex flex-col justify-between">
+                    
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <span id="stepNumberBadge" class="w-8 h-8 rounded-xl bg-pink-500 text-white font-bold flex items-center justify-center heading-font text-base shadow-sm">1</span>
+                            <h2 id="stepTitle" class="heading-font text-xl sm:text-2xl text-purple-900 font-bold">What is your monster's name?</h2>
+                        </div>
+                        <button onclick="randomizeAll()" class="text-xs bg-purple-50 text-purple-600 hover:bg-purple-100 font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-dice"></i> Surprise Me!
+                        </button>
+                    </div>
+
+                    <!-- Step Cards Container -->
+                    <form id="monsterForm" class="py-4">
+                        
+                        <!-- Step 1: Name -->
+                        <div class="step-card step-transition space-y-4" data-step="1">
+                            <label class="block text-sm font-semibold text-slate-500">Fill in the blank:</label>
+                            <div class="p-6 bg-pink-50/70 rounded-3xl border-2 border-pink-200 flex flex-wrap items-center justify-center gap-3 text-slate-800 font-bold text-xl sm:text-2xl text-center">
+                                <span>I am Monster</span>
+                                <input type="text" id="monsterName" value="" placeholder="Type name..." class="px-4 py-2 rounded-2xl border-2 border-pink-400 focus:border-purple-600 focus:outline-none font-extrabold text-pink-700 bg-white w-48 sm:w-64 text-center text-xl sm:text-2xl transition shadow-md">
+                                <span>.</span>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Age -->
+                        <div class="step-card step-transition space-y-4 hidden" data-step="2">
+                            <label class="block text-sm font-semibold text-slate-500">Choose the monster's age:</label>
+                            <div class="p-6 bg-purple-50/70 rounded-3xl border-2 border-purple-200 flex flex-wrap items-center justify-center gap-3 text-slate-800 font-bold text-xl sm:text-2xl text-center">
+                                <span>I am</span>
+                                <select id="monsterAge" class="px-4 py-2 rounded-2xl border-2 border-purple-400 focus:border-purple-600 focus:outline-none font-extrabold text-purple-900 bg-white text-xl sm:text-2xl transition shadow-md cursor-pointer">
+                                    <option value="5" selected>5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <span>years old.</span>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Eyes -->
+                        <div class="step-card step-transition space-y-4 hidden" data-step="3">
+                            <label class="block text-sm font-semibold text-slate-500">How many eyes does your monster have?</label>
+                            <div class="p-6 bg-blue-50/70 rounded-3xl border-2 border-blue-200 flex flex-wrap items-center justify-center gap-3 text-slate-800 font-bold text-xl sm:text-2xl text-center">
+                                <span>I have</span>
+                                <select id="monsterEyes" class="px-4 py-2 rounded-2xl border-2 border-blue-400 focus:border-purple-600 focus:outline-none font-extrabold text-blue-900 bg-white text-xl sm:text-2xl transition shadow-md cursor-pointer">
+                                    <option value="0">0</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9" selected>9</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <span id="labelEyes">eyes.</span>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Ears -->
+                        <div class="step-card step-transition space-y-4 hidden" data-step="4">
+                            <label class="block text-sm font-semibold text-slate-500">How many ears does your monster have?</label>
+                            <div class="p-6 bg-amber-50/70 rounded-3xl border-2 border-amber-200 flex flex-wrap items-center justify-center gap-3 text-slate-800 font-bold text-xl sm:text-2xl text-center">
+                                <span>I have</span>
+                                <select id="monsterEars" class="px-4 py-2 rounded-2xl border-2 border-amber-400 focus:border-purple-600 focus:outline-none font-extrabold text-amber-900 bg-white text-xl sm:text-2xl transition shadow-md cursor-pointer">
+                                    <option value="0">0</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4" selected>4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <span id="labelEars">ears.</span>
+                            </div>
+                        </div>
+
+                        <!-- Step 5: Mouths -->
+                        <div class="step-card step-transition space-y-4 hidden" data-step="5">
+                            <label class="block text-sm font-semibold text-slate-500">How many mouths does your monster have?</label>
+                            <div class="p-6 bg-emerald-50/70 rounded-3xl border-2 border-emerald-200 flex flex-wrap items-center justify-center gap-3 text-slate-800 font-bold text-xl sm:text-2xl text-center">
+                                <span>I have</span>
+                                <select id="monsterMouths" class="px-4 py-2 rounded-2xl border-2 border-emerald-400 focus:border-purple-600 focus:outline-none font-extrabold text-emerald-900 bg-white text-xl sm:text-2xl transition shadow-md cursor-pointer">
+                                    <option value="0">0</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7" selected>7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <span id="labelMouths">mouths.</span>
+                            </div>
+                        </div>
+
+                        <!-- Step 6: Hands & Legs -->
+                        <div class="step-card step-transition space-y-4 hidden" data-step="6">
+                            <label class="block text-sm font-semibold text-slate-500">How many hands and legs?</label>
+                            <div class="p-6 bg-indigo-50/70 rounded-3xl border-2 border-indigo-200 flex flex-wrap items-center justify-center gap-3 text-slate-800 font-bold text-xl sm:text-2xl text-center">
+                                <span>I have</span>
+                                <select id="monsterHands" class="px-4 py-2 rounded-2xl border-2 border-indigo-400 focus:border-purple-600 focus:outline-none font-extrabold text-indigo-900 bg-white text-xl sm:text-2xl transition shadow-md cursor-pointer">
+                                    <option value="0">0</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5" selected>5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <span id="labelHands">hands</span>
+                                <span>and</span>
+                                <select id="monsterLegs" class="px-4 py-2 rounded-2xl border-2 border-teal-400 focus:border-purple-600 focus:outline-none font-extrabold text-teal-900 bg-white text-xl sm:text-2xl transition shadow-md cursor-pointer">
+                                    <option value="0">0</option>
+                                    <option value="1">1</option>
+                                    <option value="2" selected>2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                                <span id="labelLegs">legs.</span>
+                            </div>
+                        </div>
+
+                        <!-- Step 7: Color & Style -->
+                        <div class="step-card step-transition space-y-4 hidden" data-step="7">
+                            <label class="block text-sm font-semibold text-slate-500">Pick monster color and art style:</label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-purple-50/70 p-6 rounded-3xl border-2 border-purple-200">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Favorite Color</label>
+                                    <select id="monsterColor" class="w-full px-4 py-3 rounded-2xl border-2 border-purple-200 focus:border-purple-500 focus:outline-none font-bold text-purple-900 bg-white text-sm sm:text-base shadow-sm">
+                                        <option value="pink" selected>🌸 Fluffy Pink</option>
+                                        <option value="purple">💜 Neon Purple</option>
+                                        <option value="blue">💙 Ocean Blue</option>
+                                        <option value="emerald green">💚 Emerald Green</option>
+                                        <option value="bright yellow">💛 Sunny Yellow</option>
+                                        <option value="vibrant orange">🧡 Mango Orange</option>
+                                        <option value="magical rainbow">🌈 Pastel Rainbow</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Art Style</label>
+                                    <select id="monsterStyle" class="w-full px-4 py-3 rounded-2xl border-2 border-purple-200 focus:border-purple-500 focus:outline-none font-bold text-purple-900 bg-white text-sm sm:text-base shadow-sm">
+                                        <option value="Cute 3D Pixar render, fluffy soft fur, vibrant lighting, highly detailed toy finish">🧸 Cute 3D Fluffy Toy</option>
+                                        <option value="Playful stop-motion claymation style, friendly character design">🎨 Claymation / Stop Motion</option>
+                                        <option value="Vibrant colorful children storybook illustration, soft watercolor texture">📖 Storybook Illustration</option>
+                                        <option value="Kawaii chibi-style anime cartoon, big shiny cute eyes, pastel shading">✨ Kawaii Anime Cartoon</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 8: Final Result & Picture Canvas -->
+                        <div class="step-card step-transition space-y-6 hidden" data-step="8">
+                            
+                            <div class="magic-card p-6 border-2 border-pink-200 bg-gradient-to-br from-white to-pink-50/50">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-xs font-bold text-pink-600 uppercase tracking-wider flex items-center gap-1.5">
+                                        <i class="fa-solid fa-book-open"></i> Generated Monster Story
+                                    </span>
+                                    <button type="button" onclick="readAloud()" id="speakBtn" class="text-xs bg-pink-500 hover:bg-pink-600 text-white font-bold px-3.5 py-2 rounded-xl shadow-md shadow-pink-200 transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-volume-high"></i> Read Aloud
+                                    </button>
+                                </div>
+
+                                <div id="sentenceDisplay" class="heading-font text-lg sm:text-xl text-slate-700 leading-relaxed p-5 bg-white/95 rounded-2xl border border-pink-100 shadow-inner"></div>
+                            </div>
+
+                            <div class="magic-card p-6 border border-purple-200 flex flex-col items-center text-center">
+                                <h3 class="heading-font text-xl text-purple-900 font-bold mb-4 flex items-center gap-2">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-pink-500"></i> Monster Picture Canvas
+                                </h3>
+
+                                <div id="imageContainer" class="w-full max-w-md aspect-square bg-slate-50 rounded-2xl border-2 border-dashed border-purple-200 flex flex-col items-center justify-center relative overflow-hidden group shadow-inner">
+                                    
+                                    <div id="placeholderState" class="p-6 space-y-3">
+                                        <div class="w-20 h-20 mx-auto rounded-3xl bg-purple-100 flex items-center justify-center text-purple-500 text-3xl">
+                                            <i class="fa-solid fa-palette"></i>
+                                        </div>
+                                        <p class="text-sm font-semibold text-slate-600">Ready to bring your monster to life?</p>
+                                    </div>
+
+                                    <div id="loadingState" class="hidden absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 space-y-4 z-10">
+                                        <div class="w-16 h-16 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin"></div>
+                                        <div class="space-y-1">
+                                            <p class="heading-font text-lg text-purple-900 font-bold">Creating your monster picture...</p>
+                                            <p class="text-xs text-slate-500 animate-pulse" id="loadingSubtext">Adding fluffy fur and colorful eyes...</p>
+                                        </div>
+                                    </div>
+
+                                    <img id="generatedImage" class="hidden w-full h-full object-cover rounded-2xl shadow-md" alt="Generated Monster">
+                                </div>
+
+                                <div class="w-full max-w-md mt-5 space-y-3">
+                                    <button type="button" id="generateBtn" onclick="generateMonsterPicture()" class="w-full py-4 px-6 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-600 hover:to-indigo-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-purple-300/50 transition transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 pulse-glow">
+                                        <i class="fa-solid fa-sparkles"></i> Generate Monster Picture
+                                    </button>
+
+                                    <div id="imageActions" class="hidden flex items-center gap-2">
+                                        <button type="button" onclick="downloadImage()" class="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+                                            <i class="fa-solid fa-download"></i> Save Image
+                                        </button>
+                                        <button type="button" onclick="shareMonsterCard()" class="flex-1 py-2.5 px-4 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+                                            <i class="fa-solid fa-copy"></i> Copy Description
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </form>
+
+                    <!-- Navigation Footer Controls -->
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
+                        <button type="button" id="prevStepBtn" onclick="changeStep(-1)" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition flex items-center gap-2">
+                            <i class="fa-solid fa-arrow-left"></i> Back
+                        </button>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="nextStepBtn" onclick="changeStep(1)" class="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold text-sm rounded-xl shadow-md transition flex items-center gap-2">
+                                Next Step <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <button type="button" id="finishStepBtn" onclick="goToStep(8)" class="hidden px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm rounded-xl shadow-md transition flex items-center gap-2">
+                                Finish & View Story <i class="fa-solid fa-check"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Gallery Section -->
+                <div class="magic-card p-5 border border-purple-100">
+                    <h3 class="heading-font text-sm text-purple-900 font-bold mb-3 flex items-center justify-between">
+                        <span><i class="fa-solid fa-images text-purple-400 mr-1.5"></i> Session Gallery</span>
+                        <span id="galleryCount" class="text-xs font-normal text-slate-400">0 monsters</span>
+                    </h3>
+                    <div id="galleryGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 min-h-[70px]">
+                        <p id="emptyGalleryMsg" class="col-span-full text-xs text-slate-400 text-center py-4">
+                            Generated monsters will appear here
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900/90 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-semibold backdrop-blur-md transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-none z-50 flex items-center gap-2">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-green-400 text-base"></i>
+        <span id="toastMessage">Notification message</span>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 7;
+        let isWizardMode = true;
+        let currentPromptText = "";
+        let galleryItems = [];
+
+        function numberToWords(numStr) {
+            const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+            const n = parseInt(numStr, 10);
+            return isNaN(n) || n < 0 || n > 10 ? numStr : words[n];
+        }
+
+        const stepTitles = {
+            1: "1. What is your monster's name?",
+            2: "2. How old is your monster?",
+            3: "3. How many eyes does it have?",
+            4: "4. How many ears does it have?",
+            5: "5. How many mouths does it have?",
+            6: "6. How many hands and legs?",
+            7: "7. Choose favorite color & art style",
+            8: "🎉 Your Monster Story & Picture!"
         };
-        fallbackLoader.onerror = function() {
+
+        const loadingMessages = [
+            "Counting monster eyes...",
+            "Combing fluffy monster fur...",
+            "Adding big happy smiles...",
+            "Mixing magical glitter...",
+            "Applying final monster magic!"
+        ];
+        let loadingMsgInterval = null;
+
+        window.onload = function() {
+            const inputs = ['monsterName', 'monsterAge', 'monsterEyes', 'monsterEars', 'monsterMouths', 'monsterHands', 'monsterLegs', 'monsterColor', 'monsterStyle'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', updateSentenceDisplay);
+                    el.addEventListener('change', updateSentenceDisplay);
+                }
+            });
+
+            const nameInput = document.getElementById('monsterName');
+            if (nameInput) {
+                nameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (currentStep < 8) changeStep(1);
+                    }
+                });
+            }
+
+            renderStepDots();
+            goToStep(1);
+            updateSentenceDisplay();
+        };
+
+        function renderStepDots() {
+            const dotsContainer = document.getElementById('stepDots');
+            if (!dotsContainer) return;
+            let html = '';
+            for (let i = 1; i <= totalSteps; i++) {
+                html += `
+                    <button type="button" onclick="goToStep(${i})" class="step-dot-btn w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center transition border-2 ${i === currentStep ? 'bg-pink-500 border-pink-500 text-white scale-110 shadow-md' : 'bg-white border-purple-200 text-purple-600 hover:border-purple-400'}">
+                        ${i}
+                    </button>
+                `;
+            }
+            dotsContainer.innerHTML = html;
+        }
+
+        function goToStep(step) {
+            currentStep = Math.max(1, Math.min(8, step));
+
+            const cards = document.querySelectorAll('.step-card');
+            cards.forEach(card => {
+                const stepNum = parseInt(card.getAttribute('data-step'), 10);
+                if (isWizardMode) {
+                    if (stepNum === currentStep) {
+                        card.classList.remove('hidden');
+                    } else {
+                        card.classList.add('hidden');
+                    }
+                } else {
+                    card.classList.remove('hidden');
+                }
+            });
+
+            const badge = document.getElementById('stepNumberBadge');
+            if (badge) badge.innerText = currentStep === 8 ? '★' : currentStep;
+            const title = document.getElementById('stepTitle');
+            if (title) title.innerText = stepTitles[currentStep] || '';
+
+            const percent = Math.round((Math.min(currentStep, totalSteps) / totalSteps) * 100);
+            const label = document.getElementById('stepProgressLabel');
+            if (label) {
+                label.innerText = currentStep === 8 ? "All Steps Completed!" : `Step ${currentStep} of ${totalSteps}: ${stepTitles[currentStep].replace(/^\d+\.\s*/, '')}`;
+            }
+            const percentLabel = document.getElementById('stepProgressPercent');
+            if (percentLabel) percentLabel.innerText = `${percent}% Complete`;
+            const bar = document.getElementById('progressBar');
+            if (bar) bar.style.width = `${percent}%`;
+
+            const prevBtn = document.getElementById('prevStepBtn');
+            const nextBtn = document.getElementById('nextStepBtn');
+            const finishBtn = document.getElementById('finishStepBtn');
+
+            if (prevBtn) prevBtn.style.visibility = (currentStep === 1 || !isWizardMode) ? 'hidden' : 'visible';
+            if (nextBtn) {
+                if (!isWizardMode || currentStep >= totalSteps) {
+                    nextBtn.classList.add('hidden');
+                } else {
+                    nextBtn.classList.remove('hidden');
+                }
+            }
+            if (finishBtn) {
+                if (isWizardMode && currentStep === totalSteps) {
+                    finishBtn.classList.remove('hidden');
+                } else {
+                    finishBtn.classList.add('hidden');
+                }
+            }
+
+            renderStepDots();
+            updateSentenceDisplay();
+        }
+
+        function changeStep(delta) {
+            goToStep(currentStep + delta);
+        }
+
+        function updateSentenceDisplay() {
+            const name = document.getElementById('monsterName')?.value.trim() || '_______';
+            const age = document.getElementById('monsterAge')?.value || '5';
+            const eyes = document.getElementById('monsterEyes')?.value || '1';
+            const ears = document.getElementById('monsterEars')?.value || '2';
+            const mouths = document.getElementById('monsterMouths')?.value || '1';
+            const hands = document.getElementById('monsterHands')?.value || '2';
+            const legs = document.getElementById('monsterLegs')?.value || '2';
+            const colorSelect = document.getElementById('monsterColor');
+            const colorText = colorSelect ? colorSelect.options[colorSelect.selectedIndex].text.replace(/^[^\s]+\s*/, '') : 'colorful';
+            const styleSelect = document.getElementById('monsterStyle');
+            const styleVal = styleSelect ? styleSelect.value : '';
+
+            const eyesWord = eyes === '1' ? 'eye' : 'eyes';
+            const earsWord = ears === '1' ? 'ear' : 'ears';
+            const mouthsWord = mouths === '1' ? 'mouth' : 'mouths';
+            const handsWord = hands === '1' ? 'hand' : 'hands';
+            const legsWord = legs === '1' ? 'leg' : 'legs';
+
+            const labelEyes = document.getElementById('labelEyes');
+            if (labelEyes) labelEyes.innerText = eyesWord + '.';
+            const labelEars = document.getElementById('labelEars');
+            if (labelEars) labelEars.innerText = earsWord + '.';
+            const labelMouths = document.getElementById('labelMouths');
+            if (labelMouths) labelMouths.innerText = mouthsWord + '.';
+            const labelHands = document.getElementById('labelHands');
+            if (labelHands) labelHands.innerText = handsWord;
+            const labelLegs = document.getElementById('labelLegs');
+            if (labelLegs) labelLegs.innerText = legsWord + '.';
+
+            const storyHtml = `
+                I am Monster <span class="text-pink-600 font-extrabold">${name}</span>. 
+                I am <span class="text-purple-600 font-extrabold">${age}</span> years old. 
+                I have <span class="text-blue-600 font-extrabold">${numberToWords(eyes)}</span> ${eyesWord}, 
+                <span class="text-amber-600 font-extrabold">${numberToWords(ears)}</span> ${earsWord}, 
+                and <span class="text-emerald-600 font-extrabold">${numberToWords(mouths)}</span> ${mouthsWord}. 
+                I have <span class="text-indigo-600 font-extrabold">${numberToWords(hands)}</span> ${handsWord} 
+                and <span class="text-teal-600 font-extrabold">${numberToWords(legs)}</span> ${legsWord}. 
+                My body is bright <span class="text-pink-500 font-extrabold">${colorText}</span>!
+            `;
+
+            const display = document.getElementById('sentenceDisplay');
+            if (display) display.innerHTML = storyHtml;
+
+            currentPromptText = `A full body character design of a cute friendly child-friendly monster named ${name}. The monster is ${colorText} colored. It has exactly ${eyes} eyes, ${ears} ears, ${mouths} happy smiling mouth, ${hands} arms/hands, and ${legs} legs. Art style: ${styleVal}. Centered in frame, clean vibrant pastel background, adorable monster toy aesthetic, high resolution, masterpiece.`;
+        }
+
+        function toggleViewMode() {
+            isWizardMode = !isWizardMode;
+            const toggleBtnText = document.getElementById('toggleViewText');
+            const wizardProgress = document.getElementById('wizardProgressContainer');
+
+            if (isWizardMode) {
+                if (toggleBtnText) toggleBtnText.innerText = "Switch to All-in-One View";
+                if (wizardProgress) wizardProgress.classList.remove('hidden');
+                goToStep(currentStep);
+            } else {
+                if (toggleBtnText) toggleBtnText.innerText = "Switch to Step-by-Step View";
+                if (wizardProgress) wizardProgress.classList.add('hidden');
+                document.querySelectorAll('.step-card').forEach(card => card.classList.remove('hidden'));
+                const badge = document.getElementById('stepNumberBadge');
+                if (badge) badge.innerText = '★';
+                const title = document.getElementById('stepTitle');
+                if (title) title.innerText = "All Steps Overview";
+                document.getElementById('nextStepBtn')?.classList.add('hidden');
+                document.getElementById('prevStepBtn')?.style.setProperty('visibility', 'hidden');
+                document.getElementById('finishStepBtn')?.classList.add('hidden');
+            }
+        }
+
+        function loadPreset(preset) {
+            if (preset === 'LALA') {
+                document.getElementById('monsterName').value = 'Lala';
+                document.getElementById('monsterAge').value = '6';
+                document.getElementById('monsterEyes').value = '3';
+                document.getElementById('monsterEars').value = '2';
+                document.getElementById('monsterMouths').value = '1';
+                document.getElementById('monsterHands').value = '2';
+                document.getElementById('monsterLegs').value = '2';
+                document.getElementById('monsterColor').value = 'pink';
+                document.getElementById('monsterStyle').value = 'Cute 3D Pixar render, fluffy soft fur, vibrant lighting, highly detailed toy finish';
+            } else if (preset === 'BUBBLE') {
+                document.getElementById('monsterName').value = 'Bubble';
+                document.getElementById('monsterAge').value = '8';
+                document.getElementById('monsterEyes').value = '1';
+                document.getElementById('monsterEars').value = '0';
+                document.getElementById('monsterMouths').value = '2';
+                document.getElementById('monsterHands').value = '4';
+                document.getElementById('monsterLegs').value = '4';
+                document.getElementById('monsterColor').value = 'blue';
+                document.getElementById('monsterStyle').value = 'Kawaii chibi-style anime cartoon, big shiny cute eyes, pastel shading';
+            } else if (preset === 'ZOG') {
+                document.getElementById('monsterName').value = 'Zog';
+                document.getElementById('monsterAge').value = '10';
+                document.getElementById('monsterEyes').value = '5';
+                document.getElementById('monsterEars').value = '4';
+                document.getElementById('monsterMouths').value = '3';
+                document.getElementById('monsterHands').value = '6';
+                document.getElementById('monsterLegs').value = '2';
+                document.getElementById('monsterColor').value = 'emerald green';
+                document.getElementById('monsterStyle').value = 'Playful stop-motion claymation style, friendly character design';
+            }
+            updateSentenceDisplay();
+            showToast(`Loaded ${preset} preset!`, 'fa-circle-check');
+        }
+
+        function randomizeAll() {
+            const names = ['Gobo', 'Pip', 'Mochi', 'Wobble', 'Snicker', 'Zippy', 'Blobbo', 'Puff', 'Fizz'];
+            document.getElementById('monsterName').value = names[Math.floor(Math.random() * names.length)];
+            document.getElementById('monsterAge').value = Math.floor(Math.random() * 6) + 5;
+            document.getElementById('monsterEyes').value = Math.floor(Math.random() * 11);
+            document.getElementById('monsterEars').value = Math.floor(Math.random() * 11);
+            document.getElementById('monsterMouths').value = Math.floor(Math.random() * 11);
+            document.getElementById('monsterHands').value = Math.floor(Math.random() * 11);
+            document.getElementById('monsterLegs').value = Math.floor(Math.random() * 11);
+
+            const colorSelect = document.getElementById('monsterColor');
+            if (colorSelect) colorSelect.selectedIndex = Math.floor(Math.random() * colorSelect.options.length);
+            const styleSelect = document.getElementById('monsterStyle');
+            if (styleSelect) styleSelect.selectedIndex = Math.floor(Math.random() * styleSelect.options.length);
+
+            updateSentenceDisplay();
+            showToast('Surprise! Monster randomized!', 'fa-dice');
+        }
+
+        function readAloud() {
+            const textToRead = document.getElementById('sentenceDisplay')?.innerText;
+            if (!textToRead) return;
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(textToRead);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.1;
+                window.speechSynthesis.speak(utterance);
+                showToast('Reading story aloud...', 'fa-volume-high');
+            } else {
+                showToast('Speech synthesis not supported on this browser.', 'fa-triangle-exclamation');
+            }
+        }
+
+        function generateMonsterPicture() {
+            const loadingState = document.getElementById('loadingState');
+            const placeholderState = document.getElementById('placeholderState');
+            const generatedImage = document.getElementById('generatedImage');
+            const imageActions = document.getElementById('imageActions');
+            const loadingSubtext = document.getElementById('loadingSubtext');
+
+            if (loadingState) loadingState.classList.remove('hidden');
+            if (placeholderState) placeholderState.classList.add('hidden');
+            if (generatedImage) generatedImage.classList.add('hidden');
+
+            let msgIdx = 0;
             if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-            if (loadingState) loadingState.classList.add('hidden');
-            if (placeholderState) placeholderState.classList.remove('hidden');
-            showToast('Could not generate image. Please try again!', 'fa-circle-exclamation');
-        };
-        fallbackLoader.src = fallbackUrl;
-    };
+            loadingMsgInterval = setInterval(() => {
+                msgIdx = (msgIdx + 1) % loadingMessages.length;
+                if (loadingSubtext) loadingSubtext.innerText = loadingMessages[msgIdx];
+            }, 1200);
 
-    imgLoader.src = primaryUrl;
-}
+            const cleanPrompt = encodeURIComponent(currentPromptText);
+            const seed = Math.floor(Math.random() * 1000000);
+            
+            const primaryUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
+            const fallbackUrl = `https://gen.pollinations.ai/image/${cleanPrompt}?width=512&height=512&seed=${seed}`;
+
+            const imgLoader = new Image();
+            
+            const handleSuccess = (url) => {
+                if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+                if (loadingState) loadingState.classList.add('hidden');
+                if (generatedImage) {
+                    generatedImage.src = url;
+                    generatedImage.classList.remove('hidden');
+                }
+                if (imageActions) imageActions.classList.remove('hidden');
+
+                addToGallery(url, document.getElementById('monsterName')?.value || 'Monster');
+                showToast('Monster image created!', 'fa-wand-magic-sparkles');
+            };
+
+            imgLoader.onload = function() {
+                handleSuccess(primaryUrl);
+            };
+
+            imgLoader.onerror = function() {
+                const fallbackLoader = new Image();
+                fallbackLoader.onload = function() {
+                    handleSuccess(fallbackUrl);
+                };
+                fallbackLoader.onerror = function() {
+                    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+                    if (loadingState) loadingState.classList.add('hidden');
+                    if (placeholderState) placeholderState.classList.remove('hidden');
+                    showToast('Could not generate image. Please try again!', 'fa-circle-exclamation');
+                };
+                fallbackLoader.src = fallbackUrl;
+            };
+
+            imgLoader.src = primaryUrl;
+        }
+
+        function addToGallery(url, name) {
+            galleryItems.unshift({ url, name });
+            const galleryGrid = document.getElementById('galleryGrid');
+            const galleryCount = document.getElementById('galleryCount');
+            const emptyGalleryMsg = document.getElementById('emptyGalleryMsg');
+
+            if (emptyGalleryMsg) emptyGalleryMsg.classList.add('hidden');
+            if (galleryCount) galleryCount.innerText = `${galleryItems.length} monster${galleryItems.length > 1 ? 's' : ''}`;
+
+            if (galleryGrid) {
+                galleryGrid.innerHTML = galleryItems.map(item => `
+                    <div class="relative group rounded-xl overflow-hidden border border-purple-100 shadow-sm aspect-square bg-slate-100">
+                        <img src="${item.url}" alt="${item.name}" class="w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-2">
+                            <span class="text-white text-xs font-bold truncate">${item.name}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function downloadImage() {
+            const generatedImage = document.getElementById('generatedImage');
+            if (!generatedImage || !generatedImage.src) return;
+            const name = document.getElementById('monsterName')?.value || 'monster';
+
+            fetch(generatedImage.src)
+                .then(response => response.blob())
+                .then(blob => {
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = blobUrl;
+                    a.download = `${name.toLowerCase()}-monster.jpg`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(blobUrl);
+                    showToast('Image downloaded!', 'fa-download');
+                })
+                .catch(() => {
+                    window.open(generatedImage.src, '_blank');
+                });
+        }
+
+        function shareMonsterCard() {
+            const textToCopy = document.getElementById('sentenceDisplay')?.innerText;
+            if (textToCopy) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    showToast('Monster story copied to clipboard!', 'fa-copy');
+                }).catch(() => {
+                    showToast('Could not copy text.', 'fa-circle-exclamation');
+                });
+            }
+        }
+
+        function showToast(message, iconClass = 'fa-circle-check') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            if (toast && toastMessage && toastIcon) {
+                toastMessage.innerText = message;
+                toastIcon.className = `fa-solid ${iconClass} text-green-400 text-base`;
+                toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+                toast.classList.add('opacity-100', 'translate-y-0');
+
+                setTimeout(() => {
+                    toast.classList.remove('opacity-100', 'translate-y-0');
+                    toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
