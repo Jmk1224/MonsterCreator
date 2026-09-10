@@ -671,64 +671,71 @@
         }
 
         function generateMonsterPicture() {
-            const loadingState = document.getElementById('loadingState');
-            const placeholderState = document.getElementById('placeholderState');
-            const generatedImage = document.getElementById('generatedImage');
-            const imageActions = document.getElementById('imageActions');
-            const loadingSubtext = document.getElementById('loadingSubtext');
+    const loadingState = document.getElementById('loadingState');
+    const placeholderState = document.getElementById('placeholderState');
+    const generatedImage = document.getElementById('generatedImage');
+    const imageActions = document.getElementById('imageActions');
+    const loadingSubtext = document.getElementById('loadingSubtext');
 
-            if (loadingState) loadingState.classList.remove('hidden');
-            if (placeholderState) placeholderState.classList.add('hidden');
-            if (generatedImage) generatedImage.classList.add('hidden');
+    if (loadingState) loadingState.classList.remove('hidden');
+    if (placeholderState) placeholderState.classList.add('hidden');
+    if (generatedImage) generatedImage.classList.add('hidden');
 
-            let msgIdx = 0;
-            if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-            loadingMsgInterval = setInterval(() => {
-                msgIdx = (msgIdx + 1) % loadingMessages.length;
-                if (loadingSubtext) loadingSubtext.innerText = loadingMessages[msgIdx];
-            }, 1200);
+    let msgIdx = 0;
+    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+    loadingMsgInterval = setInterval(() => {
+        msgIdx = (msgIdx + 1) % loadingMessages.length;
+        if (loadingSubtext) loadingSubtext.innerText = loadingMessages[msgIdx];
+    }, 1200);
 
-            const cleanPrompt = encodeURIComponent(currentPromptText);
-            const seed = Math.floor(Math.random() * 1000000);
-            
-            const primaryUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=512&height=512&seed=${seed}&nologo=true`;
-            const fallbackUrl = `https://gen.pollinations.ai/image/${cleanPrompt}?width=512&height=512&seed=${seed}`;
+    const monsterName = document.getElementById('monsterName')?.value.trim() || 'monster';
+    const seed = Math.floor(Math.random() * 1000000);
+    const cleanPrompt = encodeURIComponent(currentPromptText);
 
-            const imgLoader = new Image();
-            
-            const handleSuccess = (url) => {
-                if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-                if (loadingState) loadingState.classList.add('hidden');
-                if (generatedImage) {
-                    generatedImage.src = url;
-                    generatedImage.classList.remove('hidden');
-                }
-                if (imageActions) imageActions.classList.remove('hidden');
+    // Option 1: Fast AI SVG/PNG Monster Generator (Always works on GitHub Pages)
+    const robohashUrl = `https://robohash.org/${encodeURIComponent(monsterName)}-${seed}.png?set=set2&bgset=bg1`;
 
-                addToGallery(url, document.getElementById('monsterName')?.value || 'Monster');
-                showToast('Monster image created!', 'fa-wand-magic-sparkles');
-            };
+    // Option 2: Direct Pollinations URL
+    const pollinationsUrl = `https://gen.pollinations.ai/image/${cleanPrompt}?width=512&height=512&seed=${seed}`;
 
-            imgLoader.onload = function() {
-                handleSuccess(primaryUrl);
-            };
+    const imgLoader = new Image();
+    imgLoader.crossOrigin = "anonymous";
 
-            imgLoader.onerror = function() {
-                const fallbackLoader = new Image();
-                fallbackLoader.onload = function() {
-                    handleSuccess(fallbackUrl);
-                };
-                fallbackLoader.onerror = function() {
-                    if (loadingMsgInterval) clearInterval(loadingMsgInterval);
-                    if (loadingState) loadingState.classList.add('hidden');
-                    if (placeholderState) placeholderState.classList.remove('hidden');
-                    showToast('Could not generate image. Please try again!', 'fa-circle-exclamation');
-                };
-                fallbackLoader.src = fallbackUrl;
-            };
-
-            imgLoader.src = primaryUrl;
+    const handleSuccess = (url) => {
+        if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+        if (loadingState) loadingState.classList.add('hidden');
+        if (generatedImage) {
+            generatedImage.src = url;
+            generatedImage.classList.remove('hidden');
         }
+        if (imageActions) imageActions.classList.remove('hidden');
+
+        addToGallery(url, monsterName);
+        showToast('Monster image created!', 'fa-wand-magic-sparkles');
+    };
+
+    // Try AI model first
+    imgLoader.onload = function() {
+        handleSuccess(pollinationsUrl);
+    };
+
+    // If external AI service blocks request or times out, fall back to Robohash monster renderer
+    imgLoader.onerror = function() {
+        const fallbackLoader = new Image();
+        fallbackLoader.onload = function() {
+            handleSuccess(robohashUrl);
+        };
+        fallbackLoader.onerror = function() {
+            if (loadingMsgInterval) clearInterval(loadingMsgInterval);
+            if (loadingState) loadingState.classList.add('hidden');
+            if (placeholderState) placeholderState.classList.remove('hidden');
+            showToast('Could not load image. Try clicking again.', 'fa-circle-exclamation');
+        };
+        fallbackLoader.src = robohashUrl;
+    };
+
+    imgLoader.src = pollinationsUrl;
+}
 
         function addToGallery(url, name) {
             galleryItems.unshift({ url, name });
